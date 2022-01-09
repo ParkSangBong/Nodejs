@@ -2,13 +2,14 @@ const express = require("express");
 const app = express();
 const fs = require("fs");
 const port = 3000;
-const path = require("path");
-const sanitizeHtml = require("sanitize-html");
 const bodyParser = require("body-parser");
 const compression = require("compression");
-const template = require("./lib/template.js");
-const qs = require("querystring");
+const helmet = require("helmet");
+const indexRouter = require("./routes/index");
+const topicRouter = require("./routes/topic");
 
+app.use(helmet());
+app.use(express.static("public"));
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(compression());
 app.get("*", function (request, response, next) {
@@ -19,155 +20,29 @@ app.get("*", function (request, response, next) {
   });
 });
 
+app.use("/", indexRouter);
+app.use("/topic", topicRouter);
+
 //route, routing
 // app.get("/", (req, res) => {
 //   res.send("Hello World!");
 // });
-app.get("/", function (request, response) {
-  //사실은 뒤의 콜백도 미들웨어인것. 익스프레스에선 모든게 미들웨어라고 볼 수도 있음.
-  var title = "Welcome";
-  var description = "Hello, Node.js";
-  var list = template.list(request.list);
-  var html = template.HTML(
-    title,
-    list,
-    `<h2>${title}</h2>${description}`,
-    `<a href="/create">create</a>`
-  );
-  response.send(html);
-});
-
-app.get("/page/:pageId", function (request, response) {
-  // return res.send("/page");
-  console.log(request.list);
-
-  var filteredId = path.parse(request.params.pageId).base;
-  fs.readFile(`data/${filteredId}`, "utf8", function (err, description) {
-    var title = request.params.pageId;
-    var sanitizedTitle = sanitizeHtml(title);
-    var sanitizedDescription = sanitizeHtml(description, {
-      allowedTags: ["h1"],
-    });
-    var list = template.list(request.list);
-    var html = template.HTML(
-      sanitizedTitle,
-      list,
-      `<h2>${sanitizedTitle}</h2>${sanitizedDescription}`,
-      ` <a href="/create">create</a>
-          <a href="/update/${sanitizedTitle}">update</a>
-          <form action="/delete_process" method="post">
-            <input type="hidden" name="id" value="${sanitizedTitle}">
-            <input type="submit" value="delete">
-          </form>`
-    );
-    response.send(html);
-  });
-});
-
-app.get("/create", function (request, response) {
-  const title = "WEB - create";
-  const list = template.list(request.list);
-  const html = template.HTML(
-    title,
-    list,
-    `
-          <form action="/create_process" method="post">
-            <p><input type="text" name="title" placeholder="title"></p>
-            <p>
-              <textarea name="description" placeholder="description"></textarea>
-            </p>
-            <p>
-              <input type="submit">
-            </p>
-          </form>
-        `,
-    ""
-  );
-  response.send(html);
-});
-
-app.post("/create_process", function (request, response) {
-  console.log("request.list : ", request.list);
-  const post = request.body;
-  const title = post.title;
-  const description = post.description;
-  fs.writeFile(`data/${title}`, description, "utf8", function (err) {
-    // response.writeHead(302, { Location: `/?id=${title}` });
-    // response.end();
-    response.redirect(`/page/${title}`);
-  });
-
-  // let body = "";
-  // request.on("data", function (data) {
-  //   body = body + data;
-  // });
-  // request.on("end", function () {
-  //   const post = qs.parse(body);
-  //   const title = post.title;
-  //   const description = post.description;
-  //   fs.writeFile(`data/${title}`, description, "utf8", function (err) {
-  //     // response.writeHead(302, { Location: `/?id=${title}` });
-  //     // response.end();
-  //     response.redirect(`/page/${title}`);
-  //   });
-  // });
-});
-
-app.get("/update/:pageId", (request, response) => {
-  var filteredId = path.parse(request.params.pageId).base;
-  fs.readFile(`data/${filteredId}`, "utf8", function (err, description) {
-    var title = request.params.pageId;
-    var list = template.list(request.list);
-    var html = template.HTML(
-      title,
-      list,
-      `
-            <form action="/update_process" method="post">
-              <input type="hidden" name="id" value="${title}">
-              <p><input type="text" name="title" placeholder="title" value="${title}"></p>
-              <p>
-                <textarea name="description" placeholder="description">${description}</textarea>
-              </p>
-              <p>
-                <input type="submit">
-              </p>
-            </form>
-            `,
-      `<a href="/create">create</a> <a href="/update?id=${title}">update</a>`
-    );
-    response.send(html);
-  });
-});
-
-app.post("/update_process", (request, response) => {
-  var post = request.body;
-  var id = post.id;
-  var title = post.title;
-  var description = post.description;
-  fs.rename(`data/${id}`, `data/${title}`, function (error) {
-    fs.writeFile(`data/${title}`, description, "utf8", function (err) {
-      // response.writeHead(302, { Location: `/?id=${title}` });
-      // response.end();
-      response.redirect(`/page/${title}`);
-    });
-  });
-});
-
-app.post("/delete_process", (request, response) => {
-  var post = request.body;
-  var id = post.id;
-  var filteredId = path.parse(id).base;
-  fs.unlink(`data/${filteredId}`, function (error) {
-    response.redirect("/");
-  });
-});
 
 // app.listen(port, () => {
 //   console.log(`Example app listening at http://localhost:${port}`);
 // });
 
+app.use((req, res, next) => {
+  res.status(404).send("Sorry cant find that!");
+});
+
+app.use(function (err, req, res, next) {
+  console.error(err.stack);
+  res.status(500).send("Something broke!");
+});
+
 app.listen(port, function () {
-  console.log(`Example app listening at http://localhost:${port}`);
+  console.log(`my express study app listening at http://localhost:${port}`);
 });
 
 // var http = require('http');
